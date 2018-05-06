@@ -9,7 +9,8 @@ using Microsoft.Bot.Connector;
 
 namespace JiraLookupBot
 {
-    internal class JiraDialog : IDialog<object>
+    [Serializable]
+    public class JiraDialog : IDialog<object>
     {
         private const string Pattern = @"((?<!([A-Za-z]{1,10})-?)[A-Z]+-\d+)";
 
@@ -41,15 +42,22 @@ namespace JiraLookupBot
             var message = await argument;
             foreach (Match match in Regex.Matches(message.Text, Pattern))
             {
-                var issue = await j.Issues.GetIssueAsync(match.Value);
-
-                var c = new HeroCard(issue.Key.Value, issue.Summary, "Status: " + issue.Status.Name + ", Assignee: " + issue.Assignee + ", Resolution: " + issue.Resolution.Name, null, new List<CardAction>
+                try
                 {
-                    new CardAction("openUrl", "Open " + issue.Key.Value, value: new Uri(new Uri(ServerUrl), "/browse/" + issue.Key.Value))
-               });
-                var msg = context.MakeMessage();
-                msg.Attachments.Add(c.ToAttachment());
-                await context.PostAsync(message);
+                    var issue = await j.Issues.GetIssueAsync(match.Value);
+
+                    var c = new HeroCard(issue.Key.Value + " - " + issue.Summary,
+                        issue.Description.Substring(0, 50),
+                        "Status: " + issue.Status.Name + ", Assignee: " + issue.Assignee + ", Resolution: " + issue.Resolution.Name,
+                        buttons: new List<CardAction>
+                        {
+                            new CardAction("openUrl", "Open " + issue.Key.Value, value: new Uri(new Uri(ServerUrl), "/browse/" + issue.Key.Value))
+                        });
+                    var msg = context.MakeMessage();
+                    msg.Attachments.Add(c.ToAttachment());
+                    await context.PostAsync(msg);
+                }
+                catch { }
             }
 
             context.Wait(MessageReceivedAsync);
